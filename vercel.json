@@ -1,0 +1,16 @@
+{
+    "buildCommand": null,
+    "outputDirectory": ".",
+    "framework": null,
+    "headers": [
+        {
+            "source": "/src/(.*)",
+            "headers": [
+                {
+                    "key": "Content-Type",
+                    "value": "application/javascript"
+                }
+            ]
+        }
+    ]
+}

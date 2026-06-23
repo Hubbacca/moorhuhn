@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Moorhuhn 3D</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Trebuchet MS', sans-serif; }
+
+    #game-canvas { display: block; width: 100%; height: 100%; cursor: none; }
+    body.menu-mode #game-canvas { cursor: pointer; }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      font-family: 'Impact', 'Trebuchet MS', sans-serif;
+      color: #fff;
+      text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000;
+    }
+    #hud.hidden { display: none; }
+    #score-panel {
+      position: absolute; top: 20px; left: 20px;
+      background: rgba(0,0,0,0.45);
+      padding: 14px 22px; border-radius: 12px;
+      border: 3px solid #f8c000;
+    }
+    #score-label { font-size: 16px; color: #f8c000; letter-spacing: 2px; }
+    #score-value { font-size: 42px; line-height: 1; color: #fff; }
+
+    #timer-panel {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(0,0,0,0.45);
+      padding: 14px 22px; border-radius: 12px;
+      border: 3px solid #f8c000;
+      text-align: right;
+    }
+    #timer-label { font-size: 16px; color: #f8c000; letter-spacing: 2px; }
+    #timer-value { font-size: 42px; line-height: 1; color: #fff; }
+    #timer-value.urgent { color: #ff4040; animation: pulse 0.6s infinite; }
+    @keyframes pulse { 50% { transform: scale(1.1); } }
+
+    #ammo-panel {
+      position: absolute; bottom: 20px; left: 20px;
+      background: rgba(0,0,0,0.45);
+      padding: 12px 20px; border-radius: 12px;
+      border: 3px solid #f8c000;
+      font-size: 28px;
+    }
+    #ammo-label { font-size: 14px; color: #f8c000; letter-spacing: 2px; display: block; }
+    #ammo-value { color: #fff; }
+    #ammo-value.empty { color: #ff4040; }
+
+    #hit-panel {
+      position: absolute; bottom: 20px; right: 20px;
+      background: rgba(0,0,0,0.45);
+      padding: 12px 20px; border-radius: 12px;
+      font-size: 18px; color: #c0d0ff;
+    }
+
+    /* ── Speech bubble ── */
+    .speech-bubble {
+      position: fixed;
+      background: #fff;
+      border: 2.5px solid #333;
+      border-radius: 12px;
+      padding: 6px 14px;
+      font-family: 'Trebuchet MS', sans-serif;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translate(-50%, -130%);
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+      animation: bubble-pop 0.2s ease-out;
+    }
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #333;
+    }
+    @keyframes bubble-pop {
+      from { transform: translate(-50%, -130%) scale(0.4); }
+      to   { transform: translate(-50%, -130%) scale(1); }
+    }
+
+    /* ── Crosshair ── */
+    #crosshair {
+      position: fixed; top: 50%; left: 50%;
+      width: 48px; height: 48px;
+      margin-left: -24px; margin-top: -24px;
+      pointer-events: none;
+      transition: transform 0.05s;
+    }
+    #crosshair svg { width: 100%; height: 100%; }
+
+    /* ── Hit marker ── */
+    .hit-marker {
+      position: fixed; transform: translate(-50%, -50%);
+      font-family: 'Impact', sans-serif; font-weight: bold;
+      font-size: 36px; pointer-events: none;
+      text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000;
+      animation: float-up 1s ease-out forwards;
+    }
+    @keyframes float-up {
+      0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+      30%  { opacity: 1; transform: translate(-50%, -80%) scale(1.4); }
+      100% { opacity: 0; transform: translate(-50%, -160%) scale(1.0); }
+    }
+
+    /* ── Muzzle flash ── */
+    #muzzle-flash {
+      position: fixed; top: 50%; left: 50%;
+      width: 240px; height: 240px;
+      margin-left: -120px; margin-top: -120px;
+      pointer-events: none; opacity: 0;
+      background: radial-gradient(circle, rgba(255,240,150,0.9) 0%, rgba(255,180,40,0.4) 30%, transparent 70%);
+    }
+
+    /* ── Screens ── */
+    .screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      background: radial-gradient(ellipse at center, rgba(20,40,80,0.85) 0%, rgba(0,0,0,0.95) 100%);
+      color: #fff; font-family: 'Impact', sans-serif;
+      text-align: center; user-select: none;
+    }
+    .screen.hidden { display: none; }
+    .screen h1 {
+      font-size: 88px;
+      color: #f8c000;
+      letter-spacing: 6px;
+      text-shadow: 4px 4px 0 #000, -3px -3px 0 #803000;
+      margin-bottom: 20px;
+    }
+    .screen h2 {
+      font-size: 36px; color: #ffffff; margin-bottom: 30px;
+      text-shadow: 2px 2px 0 #000;
+    }
+    .screen .big-score {
+      font-size: 84px; color: #f8c000; line-height: 1;
+      margin: 16px 0;
+      text-shadow: 3px 3px 0 #000;
+    }
+    .screen p {
+      font-size: 22px; color: #c0d8ff; margin: 8px 0;
+      font-family: 'Trebuchet MS', sans-serif;
+      text-shadow: 1px 1px 0 #000;
+    }
+    .screen .pulse {
+      margin-top: 40px; font-size: 28px; color: #fff;
+      animation: blink 0.8s infinite alternate;
+    }
+    @keyframes blink { to { opacity: 0.2; } }
+
+    /* Small chicken logo decoration on menu */
+    .chick-deco {
+      width: 120px; height: 120px; margin-bottom: 20px;
+      font-size: 100px; line-height: 1;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="score-panel">
+      <div id="score-label">SCORE</div>
+      <div id="score-value">0</div>
+    </div>
+    <div id="timer-panel">
+      <div id="timer-label">TIME</div>
+      <div id="timer-value">90</div>
+    </div>
+    <div id="ammo-panel">
+      <span id="ammo-label">AMMO</span>
+      <span id="ammo-value">●●●●●●</span>
+    </div>
+    <div id="hit-panel">
+      Hits: <span id="hits-value">0</span> / <span id="shots-value">0</span>
+    </div>
+  </div>
+
+  <!-- Crosshair -->
+  <div id="crosshair">
+    <svg viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(0,0,0,0.6)" stroke-width="4"/>
+      <circle cx="24" cy="24" r="20" fill="none" stroke="#f8c000" stroke-width="2"/>
+      <line x1="24" y1="2"  x2="24" y2="14" stroke="#f8c000" stroke-width="2"/>
+      <line x1="24" y1="34" x2="24" y2="46" stroke="#f8c000" stroke-width="2"/>
+      <line x1="2"  y1="24" x2="14" y2="24" stroke="#f8c000" stroke-width="2"/>
+      <line x1="34" y1="24" x2="46" y2="24" stroke="#f8c000" stroke-width="2"/>
+      <circle cx="24" cy="24" r="2" fill="#ff4040"/>
+    </svg>
+  </div>
+
+  <div id="muzzle-flash"></div>
+
+  <!-- Menu -->
+  <div id="menu-screen" class="screen">
+    <div class="chick-deco">🐔</div>
+    <h1>MOORHUHN 3D</h1>
+    <h2>Shoot the Chickens!</h2>
+    <p>Move the mouse to aim • Click to shoot</p>
+    <p>R to reload • You have 90 seconds</p>
+    <p>Bigger chickens = more points • Golden chickens = bonus</p>
+    <div class="pulse">CLICK TO START</div>
+  </div>
+
+  <!-- End screen -->
+  <div id="end-screen" class="screen hidden">
+    <h1>TIME UP!</h1>
+    <h2>Your Score</h2>
+    <div class="big-score" id="end-score">0</div>
+    <p><span id="end-hits">0</span> hits in <span id="end-shots">0</span> shots
+       (<span id="end-accuracy">0</span>% accuracy)</p>
+    <p id="end-rank">Hunter Rank: Apprentice</p>
+    <div class="pulse">CLICK TO PLAY AGAIN</div>
+  </div>
+
+  <!-- Three.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Game modules -->
+  <script src="src/world.js"></script>
+  <script src="src/chickens.js"></script>
+  <script src="src/effects.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
